@@ -8,6 +8,7 @@ import express from "express";
 import adminRoutes from "./routes/admin.js";
 import ambulanceRoutes from "./routes/ambulance.js";
 import authRoutes from "./routes/auth.js";
+import hospitalRoutes from "./routes/hospital.js";
 import locationRoutes from "./routes/location.js";
 import patientRoutes from "./routes/patient.js";
 import notificationRoutes from "./routes/notifications.js";
@@ -21,6 +22,11 @@ import { configurePushNotifications } from "./services/pushNotifications.js";
 const app = express();
 const httpServer = createServer(app);
 const port = Number(process.env.PORT || 5000);
+const clientOrigins = [
+  process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  "https://localhost",
+  "capacitor://localhost",
+];
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,
@@ -42,6 +48,13 @@ const fareEstimateLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "Too many fare estimates. Wait for the limit to reset and try again." },
 });
+const hospitalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Too many hospital API requests. Wait a little and try again." },
+});
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   throw new Error("JWT_SECRET must be set to a secret of at least 32 characters.");
@@ -50,7 +63,7 @@ configurePushNotifications();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    origin: clientOrigins,
   }),
 );
 app.disable("x-powered-by");
@@ -67,6 +80,7 @@ app.use("/api/dispatcher", dispatcherRoutes);
 app.use("/api/patient/fare-estimate", fareEstimateLimiter);
 app.use("/api/patient", patientRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/hospital", hospitalApiLimiter, hospitalRoutes);
 
 app.get("/api/health", async (_request, response) => {
   try {
@@ -88,7 +102,7 @@ app.use(errorHandler);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+    origin: clientOrigins,
   },
 });
 setSocketServer(io);
