@@ -1,0 +1,17 @@
+{
+  "name": "EmergencyCare",
+  "short_name": "EmergencyCare",
+  "description": "Emergency ambulance coordination for patients, dispatchers, ambulance drivers, and administrators.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff8f8",
+  "theme_color": "#d62839",
+  "icons": [
+    {
+      "src": "/medical-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
