@@ -13,6 +13,21 @@ CREATE TABLE IF NOT EXISTS users (
   KEY idx_users_role_status (role, account_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS hospital_partners (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(160) NOT NULL,
+  address VARCHAR(500) NOT NULL,
+  latitude DECIMAL(10, 7) NOT NULL,
+  longitude DECIMAL(10, 7) NOT NULL,
+  api_key_hash CHAR(64) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_hospital_api_key_hash (api_key_hash),
+  KEY idx_hospital_active (is_active, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS dispatcher_profiles (
   user_id BIGINT UNSIGNED NOT NULL,
   age TINYINT UNSIGNED NOT NULL,
@@ -69,7 +84,9 @@ CREATE TABLE IF NOT EXISTS ambulance_profiles (
 
 CREATE TABLE IF NOT EXISTS ambulance_requests (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  patient_id BIGINT UNSIGNED NOT NULL,
+  patient_id BIGINT UNSIGNED NULL,
+  hospital_id BIGINT UNSIGNED NULL,
+  request_source ENUM('patient', 'hospital') NOT NULL DEFAULT 'patient',
   dispatcher_id BIGINT UNSIGNED NULL,
   ambulance_id BIGINT UNSIGNED NULL,
   patient_name VARCHAR(120) NOT NULL,
@@ -102,10 +119,13 @@ CREATE TABLE IF NOT EXISTS ambulance_requests (
   PRIMARY KEY (id),
   KEY idx_request_status_created (status, created_at),
   KEY idx_request_patient_created (patient_id, created_at),
+  KEY idx_request_hospital_created (hospital_id, created_at),
   KEY idx_request_dispatcher_status (dispatcher_id, status),
   KEY idx_request_ambulance_status (ambulance_id, status),
   CONSTRAINT fk_request_patient
     FOREIGN KEY (patient_id) REFERENCES users (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_request_hospital
+    FOREIGN KEY (hospital_id) REFERENCES hospital_partners (id) ON DELETE SET NULL,
   CONSTRAINT fk_request_dispatcher
     FOREIGN KEY (dispatcher_id) REFERENCES dispatcher_profiles (user_id) ON DELETE SET NULL,
   CONSTRAINT fk_request_ambulance
@@ -113,6 +133,9 @@ CREATE TABLE IF NOT EXISTS ambulance_requests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE ambulance_requests
+  MODIFY COLUMN patient_id BIGINT UNSIGNED NULL,
+  ADD COLUMN IF NOT EXISTS hospital_id BIGINT UNSIGNED NULL,
+  ADD COLUMN IF NOT EXISTS request_source ENUM('patient', 'hospital') NOT NULL DEFAULT 'patient',
   ADD COLUMN IF NOT EXISTS estimated_distance_km DECIMAL(8, 2) NULL,
   ADD COLUMN IF NOT EXISTS fare_rate_per_km DECIMAL(10, 2) NULL,
   ADD COLUMN IF NOT EXISTS fare_amount DECIMAL(10, 2) NULL,
