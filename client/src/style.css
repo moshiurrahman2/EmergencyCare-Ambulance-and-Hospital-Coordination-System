@@ -878,6 +878,83 @@ h1 {
   margin-bottom: 0;
 }
 
+.hospital-form {
+  max-width: 720px;
+  margin-top: 22px;
+}
+
+.hospital-api-guide,
+.hospital-key-notice {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 15px;
+  border: 1px solid #e8e4ed;
+  border-radius: 12px;
+  background: #faf9fc;
+  color: #555860;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.hospital-key-notice {
+  border-color: #b7dfc2;
+  background: #f1fbf5;
+  color: #245c39;
+}
+
+.hospital-api-guide code,
+.hospital-key-notice code {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.hospital-key-notice > code {
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: #22252a;
+  font-size: 12px;
+}
+
+.hospital-list {
+  margin-top: 26px;
+}
+
+.hospital-list h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.hospital-coordinates {
+  color: #777a80;
+  font-size: 11px;
+}
+
+.workspace-nav-dispatcher .patient-nav-tab.selected {
+  color: #455db4;
+}
+
+.workspace-nav-dispatcher {
+  border-top-color: #dfe4f4;
+}
+
+.workspace-nav-ambulance .patient-nav-tab.selected {
+  color: #287047;
+}
+
+.workspace-nav-ambulance {
+  border-top-color: #dceee2;
+}
+
+.workspace-nav-admin .patient-nav-tab.selected {
+  color: #7a4e9a;
+}
+
+.workspace-nav-admin {
+  border-top-color: #e8dff0;
+}
+
 .patient-shell {
   width: min(100%, 720px);
   min-height: 100vh;

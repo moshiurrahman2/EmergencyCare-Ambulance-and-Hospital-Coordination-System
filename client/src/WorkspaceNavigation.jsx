@@ -1,12 +1,35 @@
-const items = [
-  ["home", "Home", "⌂"],
-  ["activity", "Activity", "▤"],
-  ["profile", "Profile", "○"],
-];
+const navigationByRole = {
+  patient: [
+    ["home", "Request help", "+"],
+    ["activity", "My requests", "▤"],
+    ["profile", "Profile", "○"],
+  ],
+  dispatcher: [
+    ["home", "Dispatch queue", "⌖"],
+    ["activity", "Dispatch log", "▤"],
+    ["profile", "Profile", "○"],
+  ],
+  ambulance: [
+    ["home", "My shift", "◉"],
+    ["activity", "Trip history", "▤"],
+    ["profile", "Driver profile", "○"],
+  ],
+  admin: [
+    ["home", "Overview", "⌂"],
+    ["activity", "Trip monitor", "▤"],
+    ["profile", "Account", "○"],
+  ],
+};
 
-export default function WorkspaceNavigation({ activeTab, onSelect, label = "Workspace navigation" }) {
+export default function WorkspaceNavigation({
+  activeTab,
+  onSelect,
+  label = "Workspace navigation",
+  variant = "patient",
+}) {
+  const items = navigationByRole[variant] || navigationByRole.patient;
   return (
-    <nav className="patient-bottom-nav" aria-label={label}>
+    <nav className={`patient-bottom-nav workspace-nav-${variant}`} aria-label={label}>
       {items.map(([value, title, icon]) => (
         <button
           key={value}
