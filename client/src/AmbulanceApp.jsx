@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiUrl } from "./api.js";
+import { getCurrentLocation, watchCurrentLocation } from "./geolocation.js";
 import useTripSocket from "./useTripSocket.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
@@ -7,7 +9,7 @@ import lookupLocationName from "./locationName.js";
 
 async function ambulanceRequest(path, options = {}) {
   const token = localStorage.getItem("emergencycare-token");
-  const response = await fetch(`/api/ambulance${path}`, {
+  const response = await fetch(apiUrl(`/api/ambulance${path}`), {
     ...options,
     headers: {
       ...(options.body && !(options.body instanceof FormData)
@@ -134,14 +136,11 @@ export default function AmbulanceApp({ user, onLogout }) {
     if (profile?.approvalStatus !== "approved" || (!profile.isOnline && !activeTrip)) {
       return undefined;
     }
-    if (!navigator.geolocation) {
-      setLocationStatus("This browser does not support location sharing.");
-      return undefined;
-    }
-
     setLocationStatus("Sharing your latest location…");
-    const watchId = navigator.geolocation.watchPosition(
-      async ({ coords }) => {
+    let stopWatching;
+    let cancelled = false;
+    watchCurrentLocation(
+      async ({ latitude, longitude }) => {
         const now = Date.now();
         if (now - lastLocationSent.current < 10000) return;
         lastLocationSent.current = now;
@@ -149,12 +148,12 @@ export default function AmbulanceApp({ user, onLogout }) {
           await ambulanceRequest("/location", {
             method: "POST",
             body: JSON.stringify({
-              latitude: coords.latitude,
-              longitude: coords.longitude,
+              latitude,
+              longitude,
             }),
           });
           try {
-            const result = await lookupLocationName(coords.latitude, coords.longitude);
+            const result = await lookupLocationName(latitude, longitude);
             setLocationStatus(result.placeName
               ? `Location shared near ${result.placeName} at ${new Date().toLocaleTimeString()}.`
               : `Location shared; no place name was found (${new Date().toLocaleTimeString()}).`);
@@ -167,8 +166,16 @@ export default function AmbulanceApp({ user, onLogout }) {
       },
       () => setLocationStatus("Location access failed. Allow location permission to share your position."),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
-    );
-    return () => navigator.geolocation.clearWatch(watchId);
+    ).then((stop) => {
+      if (cancelled) stop();
+      else stopWatching = stop;
+    }).catch((locationError) => {
+      setLocationStatus(locationError.message);
+    });
+    return () => {
+      cancelled = true;
+      stopWatching?.();
+    };
   }, [activeTrip?.id, handleError, profile?.approvalStatus, profile?.isOnline]);
 
   function updateField(event) {
@@ -214,30 +221,15 @@ export default function AmbulanceApp({ user, onLogout }) {
     }
   }
 
-  function getPosition() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("This browser does not support location sharing."));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        ({ coords }) => resolve({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-        }),
-        () => reject(new Error("Allow location access before going online.")),
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 },
-      );
-    });
-  }
-
   async function toggleAvailability() {
     const isOnline = !profile.isOnline;
     setError("");
     setNotice("");
     setBusy(true);
     try {
-      const location = isOnline ? await getPosition() : {};
+      const location = isOnline
+        ? await getCurrentLocation({ enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 })
+        : {};
       const result = await ambulanceRequest("/availability", {
         method: "PATCH",
         body: JSON.stringify({ isOnline, ...location }),
@@ -523,6 +515,7 @@ export default function AmbulanceApp({ user, onLogout }) {
       </section>
       <WorkspaceNavigation
         activeTab={tab}
+        variant="ambulance"
         label="Ambulance navigation"
         onSelect={(value) => {
           setTab(value);
