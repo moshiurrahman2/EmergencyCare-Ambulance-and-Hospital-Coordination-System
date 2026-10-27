@@ -32,8 +32,9 @@ Get-Content -Raw server\database\schema.sql | mysql -u root -p emergency_care
 Enter your MySQL password when prompted. If the XAMPP MySQL port differs from
 3306, use that port when importing and set the same port in `server\.env`.
 When updating an existing installation, import the current `schema.sql` into
-the existing `emergency_care` database to apply its additive fare columns and
-settings table. Back up the database first; do not drop it.
+the existing `emergency_care` database to apply additive schema updates,
+including fare settings and hospital API support. Back up the database first;
+do not drop it.
 
 ## 3. Configure the API
 
@@ -79,6 +80,44 @@ npm.cmd run dev
 Open the local URL printed by Vite. The API health check is available at
 `http://localhost:5000/api/health`; it reports whether the API can connect to
 MySQL.
+
+The client has role-specific, mobile-friendly interfaces. It is also packaged
+as a native Android app for patients, dispatchers, ambulance drivers, and
+admins. Dispatcher and admin roles can use the same workspaces from the website
+on desktop or mobile browsers.
+
+## Android mobile app
+
+The Android app is a native Capacitor application that packages the React
+client. It uses Android's location permission for patient pickup and ambulance
+location sharing. The website continues to run separately through Vite.
+
+Install Android Studio with Android SDK Platform 36 and JDK 21. From the
+`client` folder, install dependencies and set the API address used by the app:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `client\.env` and set `VITE_API_BASE_URL` to the public HTTPS origin of
+your deployed API (for example, `https://api.example.com`). Do not use
+`localhost` for a phone connecting over Wi-Fi: on a phone, localhost means the
+phone itself. Deploy the API with HTTPS and allow the native WebView origins
+`https://localhost` and `capacitor://localhost` in its CORS configuration.
+
+Build the client assets and synchronize the native Android project:
+
+```powershell
+npm.cmd run android:sync
+npm.cmd run android:open
+```
+
+In Android Studio, run the app on an emulator or connected Android phone, or
+build a signed APK/Android App Bundle for distribution. After changing React
+code, run `npm.cmd run android:sync` again before rebuilding in Android Studio.
+The app's in-app notifications and live updates use the existing API; browser
+push notifications are available on the website, not configured as Android
+system push notifications.
 
 ## Phase 2: account setup
 
@@ -152,6 +191,10 @@ Admin API endpoints require an active admin JWT:
 - `GET /api/admin/trips` lists trips with status filtering and pagination.
 - `GET /api/admin/fare-rates` reads the current ambulance rates.
 - `PUT /api/admin/fare-rates` updates rates for future fare estimates.
+- `GET /api/admin/hospitals` lists connected hospitals without exposing API keys.
+- `POST /api/admin/hospitals` registers a hospital and issues its API key once.
+- `POST /api/admin/hospitals/:hospitalId/rotate-key` replaces its API key.
+- `PATCH /api/admin/hospitals/:hospitalId/status` enables or disables API access.
 
 Approval and trip records will be empty until the corresponding dispatcher,
 ambulance, and patient flows create profile and trip data in later phases.
@@ -352,3 +395,56 @@ separate terminals, and open the Vite URL in a browser. Check
 an error, compare `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME`
 in `server\.env` with the MySQL settings in XAMPP. Browser location features
 need a secure context (localhost is allowed) and location permission.
+
+## Hospital software integration
+
+An admin registers each facility from the dashboard's **Hospitals** section,
+including its name, address, and latitude/longitude. The API key is displayed
+once; copy it directly into the hospital's server-side secret storage. Only the
+SHA-256 hash is stored by EmergencyCare. Rotating a key invalidates the old one,
+and disabling a hospital immediately blocks further API access. Never put the
+hospital key in browser code or a public mobile app.
+
+The hospital API uses `X-Hospital-API-Key` authentication, is rate-limited, and
+is intended for server-to-server HTTPS requests. Its separate hospital
+endpoints create and track hospital requests while using the shared trip
+lifecycle, so online dispatchers see them in their normal queue and assign
+ambulances from the existing fleet. The registered facility is the trip
+destination; each call supplies patient and pickup details.
+
+Base URL: `https://<your-api-host>/api/hospital`
+
+Create a request:
+
+```http
+POST /requests
+X-Hospital-API-Key: <hospital-api-key>
+Content-Type: application/json
+```
+
+```json
+{
+  "patientName": "Patient name",
+  "patientPhone": "+8801XXXXXXXXX",
+  "symptoms": "Brief emergency details",
+  "pickupLocation": "Pickup address",
+  "pickupLatitude": 23.8103,
+  "pickupLongitude": 90.4125,
+  "ambulanceType": "basic"
+}
+```
+
+`ambulanceType` must be `basic`, `icu`, or `freezer`. A successful request
+returns HTTP 201 with a `requestId` and `searching` status. Use
+`GET /requests/:requestId` to read status and assigned-driver details, or
+`GET /requests?limit=50` to list the facility's recent requests (limit 1–100).
+`PATCH /requests/:requestId/cancel` cancels a request only while it is still
+searching and has not been claimed by a dispatcher.
+Requests belonging to another hospital are not visible with this key. Standard
+validation errors use HTTP 400; missing, invalid, or disabled keys use HTTP 401;
+requests that can no longer be cancelled use HTTP 409.
+
+Before deploying, re-import `server\database\schema.sql` into the existing
+database as described in **2. Create the tables**. This adds the hospital
+registry and the hospital-origin fields to requests without dropping existing
+trip data. Keep API keys, database credentials, and JWT/VAPID secrets private.
