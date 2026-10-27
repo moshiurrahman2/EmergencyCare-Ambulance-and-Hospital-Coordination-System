@@ -37,7 +37,7 @@ export async function notifyTripAssigned({ requestId, patientId, dispatcherId, a
      WHERE role = 'admin' AND account_status = 'active'`,
   );
   const targets = [
-    {
+    patientId && {
       userId: patientId,
       title: "Ambulance assigned to your request",
       message: `A dispatcher assigned an ambulance to request #${requestId}.`,

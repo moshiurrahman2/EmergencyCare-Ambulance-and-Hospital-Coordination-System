@@ -18,6 +18,7 @@ const activeTripStatuses = ["accepted", "picked_up", "at_hospital"];
 const dispatchableStatuses = ["searching"];
 const requestSelect = `
   SELECT r.id, r.patient_name AS patientName, r.patient_phone AS patientPhone,
+    r.request_source AS requestSource, h.name AS hospitalName,
     r.symptoms, r.current_location AS currentLocation,
     r.current_latitude AS currentLatitude,
     r.current_longitude AS currentLongitude,
@@ -34,6 +35,7 @@ const requestSelect = `
     loc.latitude AS ambulanceLatitude, loc.longitude AS ambulanceLongitude,
     loc.recorded_at AS ambulanceLocationUpdatedAt
   FROM ambulance_requests r
+  LEFT JOIN hospital_partners h ON h.id = r.hospital_id
   LEFT JOIN ambulance_profiles ap ON ap.user_id = r.ambulance_id
   LEFT JOIN users au ON au.id = ap.user_id
   LEFT JOIN ambulance_locations loc
@@ -514,7 +516,7 @@ router.post("/requests/:requestId/assign", async (request, response, next) => {
     });
     void notifyTripAssigned({
       requestId,
-      patientId: String(item.patientId),
+      patientId: item.patientId === null ? null : String(item.patientId),
       dispatcherId: request.user.id,
       ambulanceId,
     }).catch((error) => {

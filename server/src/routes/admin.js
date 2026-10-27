@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,6 +59,132 @@ async function removeAmbulanceDocuments(filenames) {
 }
 
 router.use(authenticate, requireRole("admin"));
+
+function makeHospitalApiKey() {
+  const apiKey = `ech_live_${randomBytes(32).toString("base64url")}`;
+  return {
+    apiKey,
+    keyHash: createHash("sha256").update(apiKey).digest("hex"),
+  };
+}
+
+function isValidCoordinate(value, minimum, maximum) {
+  return typeof value === "number" && Number.isFinite(value) &&
+    value >= minimum && value <= maximum;
+}
+
+router.get("/hospitals", async (_request, response, next) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, name, address, latitude, longitude,
+        is_active AS isActive, created_at AS createdAt
+       FROM hospital_partners
+       ORDER BY created_at DESC, id DESC`,
+    );
+    return response.json({
+      hospitals: rows.map((hospital) => ({
+        ...hospital,
+        id: String(hospital.id),
+        latitude: Number(hospital.latitude),
+        longitude: Number(hospital.longitude),
+        isActive: Boolean(hospital.isActive),
+      })),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/hospitals", async (request, response, next) => {
+  const { name, address, latitude, longitude } = request.body ?? {};
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 160) {
+    return response.status(400).json({ message: "Hospital name must be between 2 and 160 characters." });
+  }
+  if (typeof address !== "string" || address.trim().length < 3 || address.trim().length > 500) {
+    return response.status(400).json({ message: "Hospital address must be between 3 and 500 characters." });
+  }
+  if (!isValidCoordinate(latitude, -90, 90) || !isValidCoordinate(longitude, -180, 180)) {
+    return response.status(400).json({ message: "Enter valid hospital latitude and longitude coordinates." });
+  }
+
+  const { apiKey, keyHash } = makeHospitalApiKey();
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO hospital_partners (name, address, latitude, longitude, api_key_hash)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name.trim(), address.trim(), latitude, longitude, keyHash],
+    );
+    return response.status(201).json({
+      message: "Hospital added. Copy the API key now; it will not be shown again.",
+      hospital: {
+        id: String(result.insertId),
+        name: name.trim(),
+        address: address.trim(),
+        latitude,
+        longitude,
+        isActive: true,
+      },
+      apiKey,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/hospitals/:hospitalId/rotate-key", async (request, response, next) => {
+  const { hospitalId } = request.params;
+  if (!/^\d+$/.test(hospitalId)) {
+    return response.status(400).json({ message: "The hospital ID is invalid." });
+  }
+
+  const { apiKey, keyHash } = makeHospitalApiKey();
+  try {
+    const [result] = await pool.execute(
+      `UPDATE hospital_partners SET api_key_hash = ?
+       WHERE id = ?`,
+      [keyHash, hospitalId],
+    );
+    if (result.affectedRows === 0) {
+      return response.status(404).json({ message: "Hospital not found." });
+    }
+    return response.json({
+      message: "API key rotated. The previous key is no longer valid; copy the new key now.",
+      apiKey,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch("/hospitals/:hospitalId/status", async (request, response, next) => {
+  const { hospitalId } = request.params;
+  const { isActive } = request.body ?? {};
+  if (!/^\d+$/.test(hospitalId) || typeof isActive !== "boolean") {
+    return response.status(400).json({ message: "Choose a valid hospital and active status." });
+  }
+
+  try {
+    const [result] = await pool.execute(
+      `UPDATE hospital_partners SET is_active = ?
+       WHERE id = ?`,
+      [isActive, hospitalId],
+    );
+    if (result.affectedRows === 0) {
+      const [rows] = await pool.execute(
+        "SELECT id FROM hospital_partners WHERE id = ? LIMIT 1",
+        [hospitalId],
+      );
+      if (!rows[0]) {
+        return response.status(404).json({ message: "Hospital not found." });
+      }
+    }
+    return response.json({
+      message: isActive ? "Hospital API access enabled." : "Hospital API access disabled.",
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 router.get("/fare-rates", async (_request, response, next) => {
   try {
@@ -555,6 +682,7 @@ router.get("/trips", async (request, response, next) => {
     const offset = (page - 1) * limit;
     const [trips] = await pool.execute(
       `SELECT r.id, r.patient_name AS patientName, r.patient_phone AS patientPhone,
+        r.request_source AS requestSource, h.name AS hospitalName,
         r.current_location AS currentLocation, r.destination,
         r.ambulance_type AS ambulanceType, r.status,
         r.estimated_distance_km AS estimatedDistanceKm,
@@ -567,6 +695,7 @@ router.get("/trips", async (request, response, next) => {
         d.name AS dispatcherName,
         a.driver_name AS driverName, a.vehicle_number AS vehicleNumber
        FROM ambulance_requests r
+       LEFT JOIN hospital_partners h ON h.id = r.hospital_id
        LEFT JOIN users d ON d.id = r.dispatcher_id
        LEFT JOIN ambulance_profiles a ON a.user_id = r.ambulance_id
        ${where}
