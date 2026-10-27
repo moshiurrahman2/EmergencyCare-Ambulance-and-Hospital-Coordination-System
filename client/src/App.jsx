@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
+import { API_BASE_URL, apiUrl } from "./api.js";
 import {
   BrowserRouter,
   Link,
@@ -30,7 +33,7 @@ const roleLabels = {
 };
 
 async function sendAuthRequest(path, data) {
-  const response = await fetch(`/api/auth/${path}`, {
+  const response = await fetch(apiUrl(`/api/auth/${path}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -228,7 +231,7 @@ function RoleHome({ role }) {
     }
 
     const controller = new AbortController();
-    fetch("/api/auth/me", {
+    fetch(apiUrl("/api/auth/me"), {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     })
@@ -319,6 +322,38 @@ function RoleHome({ role }) {
 
 function AppRoutes() {
   const token = localStorage.getItem("emergencycare-token");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let listener;
+    let active = true;
+    CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+      if (canGoBack) navigate(-1);
+      else CapacitorApp.exitApp();
+    }).then((handle) => {
+      if (active) listener = handle;
+      else handle.remove();
+    }).catch((error) => {
+      console.error("Could not register Android back-button handling:", error.message);
+    });
+    return () => {
+      active = false;
+      listener?.remove();
+    };
+  }, [navigate]);
+
+  if (Capacitor.isNativePlatform() && !API_BASE_URL) {
+    return (
+      <main className="status-card">
+        <p className="form-error" role="alert">
+          The EmergencyCare API address is not configured for this app. Set
+          VITE_API_BASE_URL in client/.env to your deployed HTTPS API address,
+          then rebuild the Android app.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <Routes>
