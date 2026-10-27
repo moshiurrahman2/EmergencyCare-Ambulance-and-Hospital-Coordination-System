@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiUrl } from "./api.js";
 import useTripSocket from "./useTripSocket.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
@@ -7,7 +8,7 @@ import LocationName from "./LocationName.jsx";
 
 async function dispatcherRequest(path, options = {}) {
   const token = localStorage.getItem("emergencycare-token");
-  const response = await fetch(`/api/dispatcher${path}`, {
+  const response = await fetch(apiUrl(`/api/dispatcher${path}`), {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -396,12 +397,12 @@ export default function DispatcherApp({ user, onLogout }) {
                 <div className="panel-heading">
                   <div>
                     <p className="eyebrow">Dispatch queue</p>
-                    <h2>Patient requests</h2>
+                    <h2>Incoming ambulance requests</h2>
                   </div>
                   <button className="secondary-button compact-button" onClick={loadWork}>Refresh</button>
                 </div>
                 {requests.length === 0 ? (
-                  <p className="empty-state">No searching requests are waiting right now.</p>
+                  <p className="empty-state">No ambulance requests are waiting right now.</p>
                 ) : (
                   <div className="record-list">
                     {requests.map((item) => {
@@ -413,7 +414,10 @@ export default function DispatcherApp({ user, onLogout }) {
                           <div className="record-heading">
                             <div>
                               <h3>Request #{item.id} · {item.patientName}</h3>
-                              <p>{item.patientPhone} · {dateLabel(item.createdAt)}</p>
+                              <p>
+                                {item.patientPhone} · {dateLabel(item.createdAt)}
+                                {item.requestSource === "hospital" && ` · Hospital: ${item.hospitalName}`}
+                              </p>
                             </div>
                             <span className={`status-pill ${item.status}`}>
                               {item.status.replaceAll("_", " ")}
@@ -438,8 +442,11 @@ export default function DispatcherApp({ user, onLogout }) {
                                 </div>
                               </>
                             )}
-                            {item.fareAmount === null && (
+                            {item.fareAmount === null && item.requestSource !== "hospital" && (
                               <div><dt>Cash fare</dt><dd>No route-based estimate; agree directly with the patient.</dd></div>
+                            )}
+                            {item.requestSource === "hospital" && (
+                              <div><dt>Request source</dt><dd>Hospital API · {item.hospitalName}</dd></div>
                             )}
                             <div><dt>Ambulance type</dt><dd>{item.ambulanceType}</dd></div>
                             <div className="wide-detail"><dt>Symptoms</dt><dd>{item.symptoms}</dd></div>
@@ -623,6 +630,7 @@ export default function DispatcherApp({ user, onLogout }) {
       </section>
       <WorkspaceNavigation
         activeTab={tab}
+        variant="dispatcher"
         label="Dispatcher navigation"
         onSelect={(value) => {
           setTab(value);
