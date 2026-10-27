@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiUrl } from "./api.js";
+import { getCurrentLocation } from "./geolocation.js";
 import useTripSocket from "./useTripSocket.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
@@ -19,7 +21,7 @@ const terminalStatuses = ["completed", "cancelled"];
 
 async function patientRequest(path, options = {}) {
   const token = localStorage.getItem("emergencycare-token");
-  const response = await fetch(`/api/patient${path}`, {
+  const response = await fetch(apiUrl(`/api/patient${path}`), {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -148,15 +150,11 @@ export default function PatientApp({ user, onLogout }) {
     setFareQuoteBusy(false);
     setFareError("");
     setAllowNoFareEstimate(false);
-    if (!navigator.geolocation) {
-      setLocationMessage("Location is not supported by this browser. Enter the coordinates manually.");
-      return;
-    }
     setLocationMessage("Getting your location…");
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const latitude = coords.latitude.toFixed(6);
-        const longitude = coords.longitude.toFixed(6);
+    getCurrentLocation({ enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }).then(
+      async ({ latitude: currentLatitude, longitude: currentLongitude }) => {
+        const latitude = currentLatitude.toFixed(6);
+        const longitude = currentLongitude.toFixed(6);
         const coordinateLabel = `Current location (${latitude}, ${longitude})`;
         setRequestForm((current) => ({
           ...current,
@@ -171,9 +169,9 @@ export default function PatientApp({ user, onLogout }) {
         setFareQuoteBusy(false);
         await lookupPickupLocation(latitude, longitude);
       },
-      () => setLocationMessage("Could not get your location. Allow location access or enter coordinates manually."),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
-    );
+    ).catch(() => {
+      setLocationMessage("Could not get your location. Allow location access or enter coordinates manually.");
+    });
   }
 
   async function lookupPickupLocation(latitudeValue = requestForm.currentLatitude, longitudeValue = requestForm.currentLongitude) {
