@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import { socketUrl } from "./api.js";
 
 export default function useTripSocket(requestIds, onTripUpdate) {
   const [connected, setConnected] = useState(false);
@@ -11,7 +12,7 @@ export default function useTripSocket(requestIds, onTripUpdate) {
       return undefined;
     }
 
-    const socket = io({
+    const socket = io(socketUrl(), {
       auth: { token: localStorage.getItem("emergencycare-token") },
       reconnection: true,
     });

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { io } from "socket.io-client";
+import { apiUrl, socketUrl } from "./api.js";
 import readApiResponse from "./readApiResponse.js";
 
+const nativeApp = Capacitor.isNativePlatform();
+
 async function notificationRequest(path, options = {}) {
-  const response = await fetch(`/api/notifications${path}`, {
+  const response = await fetch(apiUrl(`/api/notifications${path}`), {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -48,7 +52,7 @@ export default function NotificationCenter({ user }) {
 
   useEffect(() => {
     loadNotifications();
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (nativeApp || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       return undefined;
     }
 
@@ -65,7 +69,7 @@ export default function NotificationCenter({ user }) {
   }, [loadNotifications]);
 
   useEffect(() => {
-    const socket = io({
+    const socket = io(socketUrl(), {
       auth: { token: localStorage.getItem("emergencycare-token") },
       reconnection: true,
     });
@@ -177,7 +181,7 @@ export default function NotificationCenter({ user }) {
               {loading ? "Loading…" : "Refresh"}
             </button>
           </div>
-          <div className="notification-push-controls">
+          {!nativeApp && <div className="notification-push-controls">
             <button
               className="secondary-button compact-button"
               disabled={busy}
@@ -188,7 +192,7 @@ export default function NotificationCenter({ user }) {
                 : pushEnabled ? "Disable browser alerts" : "Enable browser alerts"}
             </button>
             <small>SMS alerts can be added later with an SMS provider.</small>
-          </div>
+          </div>}
           {error && <p className="form-error" role="alert">{error}</p>}
           {notice && <p className="notice" role="status">{notice}</p>}
           {notifications.length === 0 ? (
