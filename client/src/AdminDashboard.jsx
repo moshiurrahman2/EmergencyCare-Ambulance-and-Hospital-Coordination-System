@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { apiUrl } from "./api.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
 import WorkspaceNavigation from "./WorkspaceNavigation.jsx";
@@ -38,7 +39,7 @@ const approvalFields = {
 
 async function adminRequest(path, options = {}) {
   const token = localStorage.getItem("emergencycare-token");
-  const response = await fetch(`/api/admin${path}`, {
+  const response = await fetch(apiUrl(`/api/admin${path}`), {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -77,6 +78,14 @@ export default function AdminDashboard({ user, onLogout }) {
   const [tripPage, setTripPage] = useState(1);
   const [tripPagination, setTripPagination] = useState({ pages: 1, total: 0 });
   const [fareRates, setFareRates] = useState(defaultFareRates);
+  const [hospitals, setHospitals] = useState([]);
+  const [hospitalForm, setHospitalForm] = useState({
+    name: "",
+    address: "",
+    latitude: "",
+    longitude: "",
+  });
+  const [createdHospitalKey, setCreatedHospitalKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -180,6 +189,19 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }, [showError]);
 
+  const loadHospitals = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await adminRequest("/hospitals");
+      setHospitals(result.hospitals);
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setLoading(false);
+    }
+  }, [showError]);
+
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
@@ -189,7 +211,8 @@ export default function AdminDashboard({ user, onLogout }) {
     if (tab === "users") loadUsers();
     if (tab === "trips") loadTrips();
     if (tab === "pricing") loadFareRates();
-  }, [tab, loadApprovals, loadUsers, loadTrips, loadFareRates]);
+    if (tab === "hospitals") loadHospitals();
+  }, [tab, loadApprovals, loadUsers, loadTrips, loadFareRates, loadHospitals]);
 
   async function reviewApplication(item, decision) {
     const reason = rejectionReasons[item.id] || "";
@@ -239,13 +262,82 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
+  async function createHospital(event) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    setCreatedHospitalKey("");
+    setActionBusy("hospital-create");
+    try {
+      const result = await adminRequest("/hospitals", {
+        method: "POST",
+        body: JSON.stringify({
+          ...hospitalForm,
+          latitude: Number(hospitalForm.latitude),
+          longitude: Number(hospitalForm.longitude),
+        }),
+      });
+      setNotice(result.message);
+      setCreatedHospitalKey(result.apiKey);
+      setHospitalForm({ name: "", address: "", latitude: "", longitude: "" });
+      await loadHospitals();
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function rotateHospitalKey(hospital) {
+    if (!window.confirm(`Rotate the API key for ${hospital.name}? Its current key will stop working immediately.`)) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    setCreatedHospitalKey("");
+    setActionBusy(`hospital-${hospital.id}`);
+    try {
+      const result = await adminRequest(`/hospitals/${hospital.id}/rotate-key`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setNotice(result.message);
+      setCreatedHospitalKey(result.apiKey);
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function setHospitalActive(hospital) {
+    const isActive = !hospital.isActive;
+    if (!isActive && !window.confirm(`Disable API access for ${hospital.name}?`)) return;
+    setError("");
+    setNotice("");
+    setCreatedHospitalKey("");
+    setActionBusy(`hospital-${hospital.id}`);
+    try {
+      const result = await adminRequest(`/hospitals/${hospital.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive }),
+      });
+      setNotice(result.message);
+      await loadHospitals();
+    } catch (requestError) {
+      showError(requestError);
+    } finally {
+      setActionBusy("");
+    }
+  }
+
   async function previewAmbulanceDocument(item, type, label) {
     setError("");
     setPreviewLoading(`${item.id}-${type}`);
     try {
       const token = localStorage.getItem("emergencycare-token");
       const response = await fetch(
-        `/api/admin/documents/ambulance/${item.id}/${type}`,
+        apiUrl(`/api/admin/documents/ambulance/${item.id}/${type}`),
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (!response.ok) {
@@ -373,6 +465,7 @@ export default function AdminDashboard({ user, onLogout }) {
           ["users", "Users"],
           ["trips", "Trips"],
           ["pricing", "Pricing"],
+          ["hospitals", "Hospitals"],
         ].map(([value, label, badge]) => (
           <button
             key={value}
@@ -693,7 +786,10 @@ export default function AdminDashboard({ user, onLogout }) {
                   <article className="record-card trip-card" key={trip.id}>
                     <div className="record-heading">
                       <div>
-                        <h3>Trip #{trip.id} · {trip.patientName}</h3>
+                        <h3>
+                          Trip #{trip.id} · {trip.patientName}
+                          {trip.requestSource === "hospital" ? ` · ${trip.hospitalName}` : ""}
+                        </h3>
                         <p>{trip.patientPhone} · {formatDate(trip.createdAt)}</p>
                       </div>
                       <span className={`status-pill ${trip.status}`}>{labelForStatus(trip.status)}</span>
@@ -768,6 +864,130 @@ export default function AdminDashboard({ user, onLogout }) {
           </section>
         )}
 
+        {tab === "hospitals" && (
+          <section className="admin-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">External integrations</p>
+                <h2>Hospital API access</h2>
+              </div>
+            </div>
+            <p className="intro">
+              Add a hospital and issue its system a private API key. Hospital requests
+              go to the dispatcher queue with this facility as the destination.
+            </p>
+            {createdHospitalKey && (
+              <div className="hospital-key-notice" role="status">
+                <strong>Copy this API key now. It will not be shown again.</strong>
+                <code>{createdHospitalKey}</code>
+                <span>Send it securely and store it as <code>HOSPITAL_API_KEY</code> in the hospital software.</span>
+              </div>
+            )}
+            <form className="patient-form hospital-form" onSubmit={createHospital}>
+              <label>
+                Hospital name
+                <input
+                  value={hospitalForm.name}
+                  onChange={(event) => setHospitalForm((current) => ({ ...current, name: event.target.value }))}
+                  minLength="2"
+                  maxLength="160"
+                  required
+                />
+              </label>
+              <label>
+                Hospital address
+                <input
+                  value={hospitalForm.address}
+                  onChange={(event) => setHospitalForm((current) => ({ ...current, address: event.target.value }))}
+                  minLength="3"
+                  maxLength="500"
+                  required
+                />
+              </label>
+              <div className="coordinate-fields">
+                <label>
+                  Latitude
+                  <input
+                    type="number"
+                    min="-90"
+                    max="90"
+                    step="any"
+                    value={hospitalForm.latitude}
+                    onChange={(event) => setHospitalForm((current) => ({ ...current, latitude: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  Longitude
+                  <input
+                    type="number"
+                    min="-180"
+                    max="180"
+                    step="any"
+                    value={hospitalForm.longitude}
+                    onChange={(event) => setHospitalForm((current) => ({ ...current, longitude: event.target.value }))}
+                    required
+                  />
+                </label>
+              </div>
+              <button className="primary-button" disabled={Boolean(actionBusy)}>
+                {actionBusy === "hospital-create" ? "Creating…" : "Add hospital and issue API key"}
+              </button>
+            </form>
+
+            <div className="hospital-api-guide">
+              <strong>API base URL</strong>
+              <code>{apiUrl("/api/hospital") || `${window.location.origin}/api/hospital`}</code>
+              <span>Send the key in the <code>X-Hospital-API-Key</code> header. Hospital requests are shown to online dispatchers for ambulance assignment.</span>
+            </div>
+
+            <div className="hospital-list">
+              <div className="panel-heading">
+                <h3>Connected hospitals</h3>
+                <button className="secondary-button compact-button" onClick={loadHospitals}>Refresh</button>
+              </div>
+              {loading ? <p className="empty-state">Loading hospitals…</p> : hospitals.length === 0 ? (
+                <p className="empty-state">No hospitals are connected yet.</p>
+              ) : (
+                <div className="record-list">
+                  {hospitals.map((hospital) => (
+                    <article className="record-card" key={hospital.id}>
+                      <div className="record-heading">
+                        <div>
+                          <h3>{hospital.name}</h3>
+                          <p>{hospital.address}</p>
+                        </div>
+                        <span className={`status-pill ${hospital.isActive ? "active" : "suspended"}`}>
+                          {hospital.isActive ? "API enabled" : "API disabled"}
+                        </span>
+                      </div>
+                      <p className="hospital-coordinates">
+                        Facility coordinates: {hospital.latitude}, {hospital.longitude}
+                      </p>
+                      <div className="record-actions">
+                        <button
+                          className="secondary-button compact-button"
+                          disabled={Boolean(actionBusy)}
+                          onClick={() => rotateHospitalKey(hospital)}
+                        >
+                          {actionBusy === `hospital-${hospital.id}` ? "Updating…" : "Rotate API key"}
+                        </button>
+                        <button
+                          className={hospital.isActive ? "danger-button compact-button" : "secondary-button compact-button"}
+                          disabled={Boolean(actionBusy)}
+                          onClick={() => setHospitalActive(hospital)}
+                        >
+                          {hospital.isActive ? "Disable API" : "Enable API"}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {tab === "profile" && (
           <section className="admin-panel profile-panel">
             <div className="panel-heading">
@@ -789,6 +1009,7 @@ export default function AdminDashboard({ user, onLogout }) {
 
       <WorkspaceNavigation
         activeTab={tab === "trips" ? "activity" : tab === "profile" ? "profile" : "home"}
+        variant="admin"
         label="Admin navigation"
         onSelect={(value) => setTabAndClear(
           value === "activity" ? "trips" : value === "profile" ? "profile" : "overview",
