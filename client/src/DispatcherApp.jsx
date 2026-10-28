@@ -37,6 +37,7 @@ export default function DispatcherApp({ user, onLogout }) {
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({ ...emptyForm, name: user.name, phone: user.phone });
   const [requests, setRequests] = useState([]);
+  const [requestCategory, setRequestCategory] = useState("registered");
   const [activeTrips, setActiveTrips] = useState([]);
   const [activity, setActivity] = useState([]);
   const [expandedActivityId, setExpandedActivityId] = useState(null);
@@ -275,6 +276,9 @@ export default function DispatcherApp({ user, onLogout }) {
   }
 
   const needsProfile = !profile?.approvalStatus || profile.approvalStatus === "rejected";
+  const registeredRequests = requests.filter((item) => item.requestSource !== "hospital");
+  const hospitalRequests = requests.filter((item) => item.requestSource === "hospital");
+  const visibleRequests = requestCategory === "hospital" ? hospitalRequests : registeredRequests;
 
   return (
     <main className="dispatcher-shell">
@@ -397,15 +401,41 @@ export default function DispatcherApp({ user, onLogout }) {
                 <div className="panel-heading">
                   <div>
                     <p className="eyebrow">Dispatch queue</p>
-                    <h2>Incoming ambulance requests</h2>
+                    <h2>
+                      {requestCategory === "hospital"
+                        ? "Hospital ambulance requests"
+                        : "Registered-user ambulance requests"}
+                    </h2>
                   </div>
                   <button className="secondary-button compact-button" onClick={loadWork}>Refresh</button>
                 </div>
-                {requests.length === 0 ? (
-                  <p className="empty-state">No ambulance requests are waiting right now.</p>
+                <div className="dispatcher-tabs" role="tablist" aria-label="Ambulance request categories">
+                  <button
+                    className={`admin-tab ${requestCategory === "registered" ? "selected" : ""}`}
+                    role="tab"
+                    aria-selected={requestCategory === "registered"}
+                    onClick={() => setRequestCategory("registered")}
+                  >
+                    Registered users ({registeredRequests.length})
+                  </button>
+                  <button
+                    className={`admin-tab ${requestCategory === "hospital" ? "selected" : ""}`}
+                    role="tab"
+                    aria-selected={requestCategory === "hospital"}
+                    onClick={() => setRequestCategory("hospital")}
+                  >
+                    Hospitals ({hospitalRequests.length})
+                  </button>
+                </div>
+                {visibleRequests.length === 0 ? (
+                  <p className="empty-state">
+                    {requestCategory === "hospital"
+                      ? "No hospital ambulance requests are waiting right now."
+                      : "No registered-user ambulance requests are waiting right now."}
+                  </p>
                 ) : (
                   <div className="record-list">
-                    {requests.map((item) => {
+                    {visibleRequests.map((item) => {
                       const assignedToMe = item.dispatcherId === user.id;
                       const unassigned = item.dispatcherId === null;
                       const candidates = candidatesByRequest[item.id] || [];
