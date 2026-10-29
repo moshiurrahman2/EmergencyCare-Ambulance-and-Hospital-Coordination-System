@@ -1,5 +1,6 @@
 :root {
   font-family: "Plus Jakarta Sans", sans-serif;
+  --page-gutter: clamp(16px, 4vw, 32px);
   color: #202124;
   background: #fff8f8;
   font-synthesis: none;
@@ -14,9 +15,11 @@
 }
 
 body {
-  min-width: 320px;
-  min-height: 100vh;
+  min-width: 0;
+  min-height: 100dvh;
   margin: 0;
+  padding-top: env(safe-area-inset-top);
+  overflow-x: hidden;
 }
 
 button,
@@ -28,9 +31,9 @@ select {
 .auth-shell,
 .status-card {
   display: grid;
-  min-height: 100vh;
+  min-height: 100dvh;
   place-items: center;
-  padding: 24px;
+  padding: max(16px, var(--page-gutter));
 }
 
 .auth-card,
@@ -137,6 +140,49 @@ h1 {
   box-shadow: 0 0 0 3px rgb(214 40 57 / 12%);
 }
 
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 46px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #62666d;
+  cursor: pointer;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.password-toggle svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  background: #f3f3f4;
+  color: #d62839;
+}
+
 .primary-button {
   min-height: 48px;
   padding: 12px 16px;
@@ -233,6 +279,84 @@ h1 {
   cursor: pointer;
   font-size: 13px;
   font-weight: 800;
+}
+
+.account-settings {
+  position: relative;
+  z-index: 20;
+}
+
+.account-settings-trigger {
+  white-space: nowrap;
+}
+
+.account-settings-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  overflow: auto;
+  place-items: center;
+  padding: max(16px, var(--page-gutter));
+  background: rgb(32 33 36 / 45%);
+}
+
+.account-settings-panel {
+  width: min(100%, 480px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 26px;
+  border: 1px solid #eadedf;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 70px rgb(38 24 26 / 24%);
+}
+
+.account-settings-panel .panel-heading {
+  margin-bottom: 0;
+}
+
+.account-settings-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.account-settings-form label {
+  display: grid;
+  gap: 7px;
+  color: #34363a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-settings-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #dedfe2;
+  border-radius: 9px;
+  outline: none;
+  background: #fff;
+  color: #202124;
+}
+
+.account-settings-form input:focus {
+  border-color: #d62839;
+  box-shadow: 0 0 0 3px rgb(214 40 57 / 12%);
+}
+
+.field-hint {
+  color: #777d86;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.account-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .status-card {
@@ -2492,16 +2616,24 @@ h1 {
     gap: 10px;
   }
 
+  .home-nav-actions {
+    order: 4;
+    width: 100%;
+    justify-content: center;
+    gap: 16px;
+    padding: 4px 0 8px;
+  }
+
   .home-nav a {
     font-size: 10px;
   }
 
-  .home-nav-actions {
-    gap: 12px;
-  }
-
   .home-login-link {
-    font-size: 11px;
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 12px;
   }
 
   .home-hero {
@@ -2661,6 +2793,17 @@ h1 {
     font-size: 11px;
   }
 
+  .notification-popover {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 58px);
+    right: 16px;
+    left: 16px;
+    width: auto;
+    max-height: calc(100dvh - env(safe-area-inset-top) - 78px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .dispatcher-presence {
     padding: 8px 10px;
     font-size: 11px;
@@ -2804,5 +2947,98 @@ h1 {
   .candidate-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .account-settings-panel {
+    width: 100%;
+    padding: 22px 18px;
+    border-radius: 14px;
+  }
+
+  .account-settings-actions {
+    flex-direction: column-reverse;
+  }
+
+  .account-settings-actions button {
+    width: 100%;
+  }
+
+  .home-button {
+    min-height: 46px;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .patient-header,
+  .ambulance-header,
+  .dispatcher-header,
+  .admin-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .patient-header-actions,
+  .ambulance-header-actions,
+  .dispatcher-header-actions,
+  .admin-account {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .patient-panel-heading,
+  .panel-heading,
+  .record-heading,
+  .user-main,
+  .pagination {
+    flex-wrap: wrap;
+  }
+
+  .user-filters {
+    flex-wrap: wrap;
+  }
+
+  .user-filters > * {
+    min-width: min(100%, 220px);
+  }
+}
+
+@media (min-width: 521px) and (max-width: 860px) {
+  .home-header,
+  .home-hero,
+  .home-trust-strip,
+  .home-process,
+  .home-cta,
+  .home-footer {
+    width: min(100% - 48px, 720px);
+  }
+
+  .home-hero {
+    grid-template-columns: 1fr;
+    padding-top: 40px;
+  }
+
+  .hero-copy {
+    max-width: 680px;
+  }
+
+  .hero-visual {
+    justify-self: center;
+  }
+
+  .admin-shell,
+  .dispatcher-shell,
+  .ambulance-shell,
+  .patient-shell {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .patient-header,
+  .ambulance-header,
+  .dispatcher-header,
+  .admin-header {
+    flex-wrap: wrap;
+    gap: 12px;
   }
 }

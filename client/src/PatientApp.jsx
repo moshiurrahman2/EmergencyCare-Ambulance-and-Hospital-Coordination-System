@@ -4,6 +4,7 @@ import { getCurrentLocation } from "./geolocation.js";
 import useTripSocket from "./useTripSocket.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
+import AccountSettings from "./AccountSettings.jsx";
 import WorkspaceNavigation from "./WorkspaceNavigation.jsx";
 import LocationName from "./LocationName.jsx";
 import lookupLocationName from "./locationName.js";
@@ -587,6 +588,7 @@ export default function PatientApp({ user, onLogout }) {
                     <div><dt>Member since</dt><dd>{dateLabel(profile.createdAt)}</dd></div>
                   </dl>
                 )}
+                <AccountSettings user={user} onLogout={onLogout} />
                 <button className="patient-logout" onClick={onLogout}>Log out of EmergencyCare</button>
               </section>
             )}

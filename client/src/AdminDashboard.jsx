@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiUrl } from "./api.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
+import AccountSettings from "./AccountSettings.jsx";
 import WorkspaceNavigation from "./WorkspaceNavigation.jsx";
 
 const initialCounts = {
@@ -86,6 +87,7 @@ export default function AdminDashboard({ user, onLogout }) {
     longitude: "",
   });
   const [createdHospitalKey, setCreatedHospitalKey] = useState("");
+  const [copiedHospitalKey, setCopiedHospitalKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -262,11 +264,24 @@ export default function AdminDashboard({ user, onLogout }) {
     }
   }
 
+  async function copyHospitalKey() {
+    if (!createdHospitalKey) return;
+    setError("");
+    try {
+      await navigator.clipboard.writeText(createdHospitalKey);
+      setCopiedHospitalKey(true);
+      setNotice("Hospital API key copied to the clipboard.");
+    } catch {
+      setError("The API key could not be copied. Please select and copy it manually.");
+    }
+  }
+
   async function createHospital(event) {
     event.preventDefault();
     setError("");
     setNotice("");
     setCreatedHospitalKey("");
+    setCopiedHospitalKey(false);
     setActionBusy("hospital-create");
     try {
       const result = await adminRequest("/hospitals", {
@@ -279,6 +294,7 @@ export default function AdminDashboard({ user, onLogout }) {
       });
       setNotice(result.message);
       setCreatedHospitalKey(result.apiKey);
+      setCopiedHospitalKey(false);
       setHospitalForm({ name: "", address: "", latitude: "", longitude: "" });
       await loadHospitals();
     } catch (requestError) {
@@ -295,6 +311,7 @@ export default function AdminDashboard({ user, onLogout }) {
     setError("");
     setNotice("");
     setCreatedHospitalKey("");
+    setCopiedHospitalKey(false);
     setActionBusy(`hospital-${hospital.id}`);
     try {
       const result = await adminRequest(`/hospitals/${hospital.id}/rotate-key`, {
@@ -303,6 +320,7 @@ export default function AdminDashboard({ user, onLogout }) {
       });
       setNotice(result.message);
       setCreatedHospitalKey(result.apiKey);
+      setCopiedHospitalKey(false);
     } catch (requestError) {
       showError(requestError);
     } finally {
@@ -316,6 +334,7 @@ export default function AdminDashboard({ user, onLogout }) {
     setError("");
     setNotice("");
     setCreatedHospitalKey("");
+    setCopiedHospitalKey(false);
     setActionBusy(`hospital-${hospital.id}`);
     try {
       const result = await adminRequest(`/hospitals/${hospital.id}/status`, {
@@ -454,7 +473,6 @@ export default function AdminDashboard({ user, onLogout }) {
         <div>
           <p className="eyebrow">Control center</p>
           <h1>Admin dashboard</h1>
-          <p className="intro">Review applications, manage accounts, and monitor trips.</p>
         </div>
       </section>
 
@@ -880,6 +898,13 @@ export default function AdminDashboard({ user, onLogout }) {
               <div className="hospital-key-notice" role="status">
                 <strong>Copy this API key now. It will not be shown again.</strong>
                 <code>{createdHospitalKey}</code>
+                <button
+                  type="button"
+                  className="secondary-button compact-button"
+                  onClick={copyHospitalKey}
+                >
+                  {copiedHospitalKey ? "Copied API key" : "Copy API key"}
+                </button>
                 <span>Send it securely and store it as <code>HOSPITAL_API_KEY</code> in the hospital software.</span>
               </div>
             )}
@@ -1002,7 +1027,8 @@ export default function AdminDashboard({ user, onLogout }) {
               <div><dt>Email</dt><dd>{user.email}</dd></div>
               <div><dt>Role</dt><dd>Administrator</dd></div>
             </dl>
-            <p className="empty-state">To change your administrator credentials, contact the system administrator.</p>
+            <AccountSettings user={user} onLogout={onLogout} />
+            <button className="patient-logout" onClick={onLogout}>Log out of EmergencyCare</button>
           </section>
         )}
       </section>

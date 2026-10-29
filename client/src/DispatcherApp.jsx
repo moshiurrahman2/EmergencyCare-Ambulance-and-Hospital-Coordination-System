@@ -3,6 +3,7 @@ import { apiUrl } from "./api.js";
 import useTripSocket from "./useTripSocket.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
+import AccountSettings from "./AccountSettings.jsx";
 import WorkspaceNavigation from "./WorkspaceNavigation.jsx";
 import LocationName from "./LocationName.jsx";
 
@@ -653,6 +654,8 @@ export default function DispatcherApp({ user, onLogout }) {
                   <div><dt>Permanent address</dt><dd>{profile.permanentAddress}</dd></div>
                   <div><dt>Present address</dt><dd>{profile.presentAddress}</dd></div>
                 </dl>
+                <AccountSettings user={user} onLogout={onLogout} />
+                <button className="patient-logout" onClick={onLogout}>Log out of EmergencyCare</button>
               </section>
             )}
           </>

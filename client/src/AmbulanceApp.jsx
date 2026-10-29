@@ -4,6 +4,7 @@ import { getCurrentLocation, watchCurrentLocation } from "./geolocation.js";
 import useTripSocket from "./useTripSocket.js";
 import readApiResponse from "./readApiResponse.js";
 import NotificationCenter from "./NotificationCenter.jsx";
+import AccountSettings from "./AccountSettings.jsx";
 import WorkspaceNavigation from "./WorkspaceNavigation.jsx";
 import lookupLocationName from "./locationName.js";
 
@@ -508,6 +509,7 @@ export default function AmbulanceApp({ user, onLogout }) {
                 <div><dt>Email</dt><dd>{user.email}</dd></div>
                 <div><dt>Account type</dt><dd>Ambulance</dd></div>
               </dl>
+              <AccountSettings user={user} onLogout={onLogout} />
               <button className="patient-logout" onClick={onLogout}>Log out of EmergencyCare</button>
             </section>}
           </>

@@ -41,6 +41,19 @@ async function sendAuthRequest(path, data) {
   return readApiResponse(response, "Unable to complete your request.");
 }
 
+function PasswordVisibilityIcon({ visible }) {
+  return visible ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.7 10.7 0 0 1 12 5c5.2 0 8.7 4.4 9.8 7a15.7 15.7 0 0 1-3.1 4.3M6.2 6.2A15.7 15.7 0 0 0 2.2 12c1.1 2.6 4.6 7 9.8 7 1.1 0 2.1-.2 3-.5" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.2 12C3.3 9.4 6.8 5 12 5s8.7 4.4 9.8 7c-1.1 2.6-4.6 7-9.8 7S3.3 14.6 2.2 12Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
 function AuthPage({ mode }) {
   const isSignup = mode === "signup";
   const [form, setForm] = useState({
@@ -51,6 +64,8 @@ function AuthPage({ mode }) {
     role: "patient",
   });
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
@@ -170,31 +185,53 @@ function AuthPage({ mode }) {
           </label>
           <label>
             Password
-            <input
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={update}
-              autoComplete={isSignup ? "new-password" : "off"}
-              minLength={isSignup ? 8 : undefined}
-              required
-            />
+            <span className="password-field">
+              <input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={update}
+                autoComplete={isSignup ? "new-password" : "off"}
+                minLength={isSignup ? 8 : undefined}
+                required
+              />
+              <button
+                className="password-toggle"
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+              >
+                <PasswordVisibilityIcon visible={showPassword} />
+              </button>
+            </span>
           </label>
           {isSignup && (
             <label>
               Retype password
-              <input
-                name="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => {
-                  setConfirmPassword(event.target.value);
-                  setError("");
-                }}
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
+              <span className="password-field">
+                <input
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(event) => {
+                    setConfirmPassword(event.target.value);
+                    setError("");
+                  }}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+                <button
+                  className="password-toggle"
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                  aria-pressed={showConfirmPassword}
+                >
+                  <PasswordVisibilityIcon visible={showConfirmPassword} />
+                </button>
+              </span>
             </label>
           )}
           <button className="primary-button" type="submit" disabled={busy}>
