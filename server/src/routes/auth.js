@@ -117,6 +117,54 @@ router.post("/login", async (request, response, next) => {
   }
 });
 
+router.put("/profile", authenticate, requireRole("patient", "dispatcher", "ambulance", "admin"), async (request, response, next) => {
+  const { email, phone, currentPassword, newPassword } = request.body ?? {};
+
+  if (typeof email !== "string" || email.trim().length > 254 || !emailPattern.test(email.trim())) {
+    return response.status(400).json({ message: "Enter a valid email address." });
+  }
+  if (typeof phone !== "string" || !phonePattern.test(phone.trim())) {
+    return response.status(400).json({ message: "Enter a valid phone number." });
+  }
+  const phoneDigits = phone.trim().replace(/\D/g, "");
+  if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+    return response.status(400).json({ message: "Phone number must contain 7 to 15 digits." });
+  }
+  if (typeof currentPassword !== "string" || currentPassword.length === 0 || Buffer.byteLength(currentPassword, "utf8") > 72) {
+    return response.status(400).json({ message: "Enter your current password to save account changes." });
+  }
+  if (newPassword !== undefined && (typeof newPassword !== "string" || (newPassword.length > 0 && (newPassword.length < 8 || Buffer.byteLength(newPassword, "utf8") > 72)))) {
+    return response.status(400).json({ message: "The new password must be at least 8 characters and no more than 72 bytes." });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const [users] = await pool.execute(
+      "SELECT id, name, email, phone, password_hash, role FROM users WHERE id = ? LIMIT 1",
+      [request.user.id],
+    );
+    const user = users[0];
+    if (!user || !(await bcrypt.compare(currentPassword, user.password_hash))) {
+      return response.status(401).json({ message: "Your current password is incorrect." });
+    }
+
+    const passwordHash = newPassword ? await bcrypt.hash(newPassword, 12) : user.password_hash;
+    await pool.execute(
+      "UPDATE users SET email = ?, phone = ?, password_hash = ? WHERE id = ?",
+      [normalizedEmail, phone.trim(), passwordHash, request.user.id],
+    );
+    return response.json({
+      message: "Your account details were updated.",
+      user: publicUser({ ...user, email: normalizedEmail, phone: phone.trim() }),
+    });
+  } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      return response.status(409).json({ message: "An account with that email already exists." });
+    }
+    return next(error);
+  }
+});
+
 router.get(
   "/me",
   authenticate,

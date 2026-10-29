@@ -24,6 +24,7 @@ const httpServer = createServer(app);
 const port = Number(process.env.PORT || 5000);
 const clientOrigins = [
   process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  "http://localhost",
   "https://localhost",
   "capacitor://localhost",
 ];
